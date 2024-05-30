@@ -1,11 +1,34 @@
+document.getElementById('fileInput').addEventListener('change', (event) => {
+    const fileInput = event.target;
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const file = fileInput.files[0];
+    if (file) {
+        fileNameDisplay.innerHTML = `<p>Selected File: ${file.name}</p>`;
+    } else {
+        fileNameDisplay.innerHTML = '';
+    }
+});
+
+document.getElementById('folderInputButton').addEventListener('click', async () => {
+    const directoryHandle = await window.showDirectoryPicker();
+    selectedFiles = [];
+    for await (const entry of directoryHandle.values()) {
+        if (entry.kind === 'file' && (entry.name.endsWith('.pdf') || entry.name.endsWith('.docx'))) {
+            selectedFiles.push(entry);
+        }
+    }
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    fileNameDisplay.innerHTML = `<p>Selected Folder: ${directoryHandle.name} (${selectedFiles.length} files)</p>`;
+});
+
 document.getElementById('parseButton').addEventListener('click', () => {
     const fileInput = document.getElementById('fileInput');
     const file = fileInput.files[0];
     const keywords = document.getElementById('keywordsInput').value.split(',').map(k => k.trim().toLowerCase());
     const resultsDiv = document.getElementById('results');
 
-    if (!file) {
-        alert('Please upload a zip file containing resumes.');
+    if (!file && !selectedFiles) {
+        alert('Please upload a zip file or select a folder containing resumes.');
         return;
     }
 
@@ -20,38 +43,66 @@ document.getElementById('parseButton').addEventListener('click', () => {
     const matchedAllKeywords = [];
     const fileKeywordMatches = {};
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-        try {
-            const zip = await JSZip.loadAsync(reader.result);
-            const files = Object.keys(zip.files).filter(filename => filename.endsWith('.pdf') || filename.endsWith('.docx'));
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = async () => {
+            try {
+                const zip = await JSZip.loadAsync(reader.result);
+                const files = Object.keys(zip.files).filter(filename => filename.endsWith('.pdf') || filename.endsWith('.docx'));
 
-            for (const filename of files) {
+                for (const filename of files) {
+                    try {
+                        const fileData = await zip.files[filename].async('arraybuffer');
+                        if (filename.endsWith('.pdf')) {
+                            extractTextFromPDF(new Uint8Array(fileData), text => {
+                                processText(filename, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
+                            });
+                        } else if (filename.endsWith('.docx')) {
+                            extractTextFromDocx(fileData, text => {
+                                processText(filename, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
+                            });
+                        }
+                    } catch (fileError) {
+                        console.error(`Error processing file ${filename}:`, fileError);
+                    }
+                }
+
+                setTimeout(() => displayResults(resultsDiv, matchedFiles, matchedAllKeywords, fileKeywordMatches, keywords.length), 1000);
+            } catch (zipError) {
+                console.error("Error reading zip file:", zipError);
+                alert("Error reading zip file. Please ensure it's a valid zip file.");
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    if (selectedFiles) {
+        (async () => {
+            for (const fileHandle of selectedFiles) {
                 try {
-                    const fileData = await zip.files[filename].async('arraybuffer');
-                    if (filename.endsWith('.pdf')) {
-                        extractTextFromPDF(new Uint8Array(fileData), text => {
-                            processText(filename, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
+                    const file = await fileHandle.getFile();
+                    const arrayBuffer = await file.arrayBuffer();
+                    if (file.name.endsWith('.pdf')) {
+                        extractTextFromPDF(new Uint8Array(arrayBuffer), text => {
+                            processText(file.name, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
                         });
-                    } else if (filename.endsWith('.docx')) {
-                        extractTextFromDocx(fileData, text => {
-                            processText(filename, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
+                    } else if (file.name.endsWith('.docx')) {
+                        extractTextFromDocx(arrayBuffer, text => {
+                            processText(file.name, text, keywords, matchedFiles, matchedAllKeywords, fileKeywordMatches);
                         });
                     }
                 } catch (fileError) {
-                    console.error(`Error processing file ${filename}:`, fileError);
+                    console.error(`Error processing file ${file.name}:`, fileError);
                 }
             }
 
             setTimeout(() => displayResults(resultsDiv, matchedFiles, matchedAllKeywords, fileKeywordMatches, keywords.length), 1000);
-        } catch (zipError) {
-            console.error("Error reading zip file:", zipError);
-            alert("Error reading zip file. Please ensure it's a valid zip file.");
-        }
-    };
-
-    reader.readAsArrayBuffer(file);
+        })();
+    }
 });
+
+let selectedFiles = null;
 
 function extractTextFromDocx(arrayBuffer, callback) {
     mammoth.extractRawText({ arrayBuffer: arrayBuffer })
@@ -118,25 +169,44 @@ function searchKeywordsInText(text, keywords) {
     }
     return results;
 }
-
 function displayResults(resultsDiv, matchedFiles, matchedAllKeywords, fileKeywordMatches, numKeywords) {
-    resultsDiv.innerHTML += '<h3>Files containing all keywords:</h3>';
+    resultsDiv.innerHTML += `<h3>Files containing all keywords:</h3>`;
+    let content = '<div class="content">';
     if (matchedAllKeywords.length) {
-        matchedAllKeywords.forEach(file => resultsDiv.innerHTML += `<p>${file}</p>`);
+        matchedAllKeywords.forEach(file => content += `<p>${file}</p>`);
     } else {
-        resultsDiv.innerHTML += '<p>None</p>';
+        content += '<p>None</p>';
     }
+    content += '</div>';
+    resultsDiv.innerHTML += content;
 
     for (const keyword in matchedFiles) {
-        resultsDiv.innerHTML += `<h3>Files containing '${keyword}':</h3>`;
+        resultsDiv.innerHTML += `<h3 class="toggle-header">Files containing '${keyword}'▼</h3>`;
+        content = '<div class="toggle-content content">';
         if (matchedFiles[keyword].length) {
-            matchedFiles[keyword].forEach(file => resultsDiv.innerHTML += `<p>${file}</p>`);
+            matchedFiles[keyword].forEach(file => content += `<p>${file}</p>`);
         } else {
-            resultsDiv.innerHTML += '<p>None</p>';
+            content += '<p>None</p>';
         }
+        content += '</div>';
+        resultsDiv.innerHTML += content;
     }
 
     resultsDiv.innerHTML += `<h3>File ranking according to matches (${numKeywords} keywords entered):</h3>`;
+    content = '<div class = "content">';
     const sortedFiles = Object.entries(fileKeywordMatches).sort((a, b) => b[1] - a[1]);
-    sortedFiles.forEach(([file, matches]) => resultsDiv.innerHTML += `<p>${file}: ${matches} matches</p>`);
+    sortedFiles.forEach(([file, matches]) => content += `<p>${file}: ${matches} matches</p>`);
+    content += '</div>';
+    resultsDiv.innerHTML += content;
+
+    addToggleFunctionality();
+}
+
+function addToggleFunctionality() {
+    document.querySelectorAll('.toggle-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const content = header.nextElementSibling;
+            content.style.display = content.style.display === 'none' ? 'block' : 'none';
+        });
+    });
 }
