@@ -9,7 +9,12 @@
 <body>
     <div class="container">
         <h1>Resume Parser</h1>
-        <input type="file" id="fileInput" accept=".zip">
+        <label for="fileInput" class="custom-file-input">
+            Select Zip File
+        </label>
+        <input type="file" id="fileInput" accept=".zip" style="display: none;">
+        <button id="folderInputButton">Select Folder</button>
+        <div id="fileNameDisplay"></div>
         <input type="text" id="keywordsInput" placeholder="Enter keywords separated by commas">
         <button id="parseButton">Parse Resumes</button>
         <div id="results"></div>
