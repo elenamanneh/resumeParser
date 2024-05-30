@@ -31,7 +31,7 @@ button,
 .custom-file-input {
     font-size: 16px; /* Set a consistent font size */
     padding: 10px 20px;
-    background-color: #dedede;
+    background-color: #EFEBEB;
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -41,7 +41,7 @@ button,
 
 button:hover,
 .custom-file-input:hover {
-    background-color: #b9b9b9;
+    background-color: #C0BABA;
 }
 
 .custom-file-input {
@@ -62,7 +62,7 @@ button:hover,
 }
 
 .content {
-    background-color: #dedede;
+    background-color: #EFEBEB;
 }
 
 #parseButton {
