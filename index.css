@@ -41,7 +41,7 @@ button,
 
 button:hover,
 .custom-file-input:hover {
-    background-color: #e3e3e3;
+    background-color: #dedede;
 }
 
 .custom-file-input {
@@ -62,7 +62,7 @@ button:hover,
 }
 
 .content {
-    background-color: #efefef;
+    background-color: #b9b9b9;
 }
 
 #parseButton {
